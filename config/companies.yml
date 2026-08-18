@@ -1,0 +1,12 @@
+# board_token is the slug in the company's ATS careers URL
+# industry is assigned by us, there is no ATS field for it
+companies:
+  - name: Epic Systems
+    ats: greenhouse
+    board_token: ""      # verify before use
+    industry: healthcare-it
+
+  - name: Datavant
+    ats: greenhouse
+    board_token: ""
+    industry: healthcare-it
