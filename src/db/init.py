@@ -89,6 +89,7 @@ TABLES = [
           skill_id   INTEGER NOT NULL REFERENCES skills(id),
           section    TEXT NOT NULL
                        CHECK (section IN ('requirements','responsibilities','other')),
+          first_seen TEXT NOT NULL,
           PRIMARY KEY (posting_id, skill_id, section)
         ) WITHOUT ROWID
     """),
