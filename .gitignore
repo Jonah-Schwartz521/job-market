@@ -1,0 +1,22 @@
+# data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/review_queue.csv
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# env
+.env
+
+# streamlit
+.streamlit/secrets.toml
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
