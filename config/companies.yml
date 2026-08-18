@@ -1,12 +1,13 @@
 # board_token is the slug in the company's ATS careers URL
 # industry is assigned by us, there is no ATS field for it
 companies:
-  - name: Epic Systems
-    ats: greenhouse
-    board_token: ""      # verify before use
-    industry: healthcare-it
-
-  - name: Datavant
-    ats: greenhouse
-    board_token: ""
-    industry: healthcare-it
+  - {name: Komodo Health,   ats: greenhouse, board_token: komodohealth,   industry: healthcare-it, active: true}
+  - {name: Omada Health,    ats: greenhouse, board_token: omadahealth,    industry: healthcare-it, active: true}
+  - {name: Zocdoc,          ats: greenhouse, board_token: zocdoc,         industry: healthcare-it, active: true}
+  - {name: Truveta,         ats: greenhouse, board_token: truveta,        industry: healthcare-it, active: true}
+  - {name: Talkspace,       ats: greenhouse, board_token: talkspace,      industry: healthcare-it, active: true}
+  - {name: Doximity,        ats: greenhouse, board_token: doximity,       industry: healthcare-it, active: true}
+  - {name: Flatiron Health, ats: greenhouse, board_token: flatironhealth, industry: healthcare-it, active: true}
+  - {name: Stripe,          ats: greenhouse, board_token: stripe,         industry: fintech,       active: true}
+  - {name: Spotify,         ats: lever,      board_token: spotify,        industry: consumer-tech, active: true}
+  - {name: Tala,            ats: lever,      board_token: tala,           industry: fintech,       active: true}

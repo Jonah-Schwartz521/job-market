@@ -85,3 +85,31 @@ streamlit run app/dashboard.py
 Scaffold stage. Priority order: schema, Greenhouse fetcher, delisting logic,
 skill dictionary, rollup, dashboard. Dashboard last, on purpose. Start
 collecting before you start visualizing.
+
+## Lever specifics
+- Response is a bare JSON array, not {"jobs": [...]}. Branch on this.
+- 200 with [] means an account with no public postings. Not an error,
+  but never treat it as a delisting event.
+- Use descriptionPlain / descriptionBodyPlain. Skip the HTML variants.
+- `lists` gives pre-split sections, but headers are NOT standardized
+  ("Who You Are", "Requirements", "Qualifications" all mean the same
+  thing). Map headers to buckets by keyword, never by exact match.
+- salaryRange is frequently null. Regex descriptionPlain as primary.
+- categories.allLocations can hold several locations for one posting.
+
+## Role classification
+Every posting gets a role_category from src/normalize/roles.py.
+Classify at INGEST, filter at QUERY. Never filter during fetch.
+Store all postings including non-technical ones. Dashboard defaults
+to ai-ml, data-science, data-analytics, data-eng, it-infra.
+
+## Skill discovery (core mechanism, not an extra)
+AI tooling turns over faster than any hand-written dictionary can
+track. A static dictionary reports only tools I already knew about
+and is structurally blind to new ones, which are the interesting ones.
+
+- Log every unmatched capitalized token WITH A COUNT, not a flag
+- data/review_queue.csv sorted by frequency, reviewed weekly
+- skills table gets first_seen_date, so I can chart when a tool
+  entered the market
+- Still never auto-promote. I approve every alias.
