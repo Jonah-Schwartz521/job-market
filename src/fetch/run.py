@@ -18,11 +18,14 @@ from pathlib import Path
 from src.fetch import greenhouse
 from src.fetch.greenhouse import FetchResult
 from src.fetch.writer import write_result
+from src.fetch import greenhouse, lever
 
 DB_PATH = Path("data/jobs.db")
 
 FETCHERS = {
     "greenhouse": greenhouse.fetch,
+    "lever": lever.fetch,
+    
 }
 
 
