@@ -8,7 +8,7 @@ Same FetchResult contract as the Greenhouse fetcher. Lever differences:
     one row per location
   - workplaceType gives a real remote_type
   - `lists` pre-splits the description into sections, but the headers are
-    free text, so they are mapped to buckets by keyword, never exact match
+    free text, so they are bucketed by keyword in src/normalize/sections.py
 
 This module does not touch SQLite.
 """
@@ -22,6 +22,7 @@ from typing import Optional
 import requests
 
 from src.fetch.greenhouse import FetchResult
+from src.normalize.sections import bucket_section
 
 API_URL = "https://api.lever.co/v0/postings/{token}?mode=json"
 
@@ -31,22 +32,6 @@ MIN_INTERVAL = 1.0
 
 _last_request_at = 0.0
 
-# Section headers are free text and full of typos: a real Spotify posting
-# ships 'What You"ll Do' with a straight double quote. Punctuation is
-# stripped before matching, so keywords here carry none.
-SECTION_KEYWORDS = (
-    ("requirements", (
-        "who you are", "requirement", "qualification", "you have", "about you",
-        "what you bring", "what we look", "skills", "experience", "youll need",
-        "you will need", "were looking for", "who were looking for",
-    )),
-    ("responsibilities", (
-        "what youll do", "what you will do", "what youll be doing",
-        "responsibilit", "the role", "your impact", "day to day", "the job",
-        "what you will be doing", "in this role",
-    )),
-)
-
 
 def _throttle():
     global _last_request_at
@@ -54,17 +39,6 @@ def _throttle():
     if wait > 0:
         time.sleep(wait)
     _last_request_at = time.monotonic()
-
-
-def bucket_section(header: str) -> str:
-    """Map a free-text Lever section header onto one of three buckets."""
-    h = (header or "").lower()
-    h = re.sub(r"[\u2018\u2019\u201c\u201d'\"`]", "", h)   # smart + straight quotes
-    h = re.sub(r"[^a-z0-9]+", " ", h).strip()
-    for bucket, keywords in SECTION_KEYWORDS:
-        if any(k in h for k in keywords):
-            return bucket
-    return "other"
 
 
 def strip_html(raw: str) -> str:
