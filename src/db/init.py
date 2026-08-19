@@ -75,6 +75,8 @@ TABLES = [
           id              INTEGER PRIMARY KEY,
           canonical_name  TEXT NOT NULL UNIQUE,
           category        TEXT,
+          guard           TEXT,
+          deny            TEXT,
           first_seen_date TEXT
         )
     """),

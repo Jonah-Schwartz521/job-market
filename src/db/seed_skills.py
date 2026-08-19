@@ -5,6 +5,7 @@ table, and config/skills.yml is the only input, so every alias is a git diff
 you approved.
 """
 
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +41,15 @@ def load_config(path):
             raise SystemExit(f"duplicate canonical: {canon}")
         seen_canon.add(key)
 
+        # A bad regex should fail here, not halfway through a nightly run.
+        for field in ("guard", "deny"):
+            pat = row.get(field)
+            if pat:
+                try:
+                    re.compile(pat)
+                except re.error as e:
+                    raise SystemExit(f"{canon}: bad {field} regex: {e}")
+
         for alias in row.get("aliases") or []:
             a = alias.strip().lower()
             if not a:
@@ -68,23 +78,28 @@ def main():
     conn.execute("PRAGMA foreign_keys = ON")
 
     added = updated = unchanged = 0
-    alias_added = 0
 
     for row in rows:
         canon = row["canonical"].strip()
         category = row["category"]
+        guard = row.get("guard")
+        deny = row.get("deny")
 
         before = conn.execute(
-            "SELECT id, category FROM skills WHERE canonical_name = ?", (canon,)
+            "SELECT id, category, guard, deny FROM skills WHERE canonical_name = ?",
+            (canon,),
         ).fetchone()
 
         conn.execute(
             """
-            INSERT INTO skills (canonical_name, category, first_seen_date)
-            VALUES (?,?,?)
-            ON CONFLICT (canonical_name) DO UPDATE SET category = excluded.category
+            INSERT INTO skills (canonical_name, category, guard, deny, first_seen_date)
+            VALUES (?,?,?,?,?)
+            ON CONFLICT (canonical_name) DO UPDATE SET
+              category = excluded.category,
+              guard    = excluded.guard,
+              deny     = excluded.deny
             """,
-            (canon, category, today),
+            (canon, category, guard, deny, today),
         )
 
         skill_id = conn.execute(
@@ -94,21 +109,20 @@ def main():
         if before is None:
             added += 1
             print(f"added      {canon}  ({category})")
-        elif before[1] != category:
+        elif (before[1], before[2], before[3]) != (category, guard, deny):
             updated += 1
-            print(f"updated    {canon}  {before[1]} -> {category}")
+            print(f"updated    {canon}")
         else:
             unchanged += 1
 
+        # The canonical name is always a matchable surface, not just aliases.
         surfaces = {canon.lower()} | {a.strip().lower() for a in (row.get("aliases") or [])}
         for alias in surfaces:
-            cur = conn.execute(
+            conn.execute(
                 "INSERT INTO skill_aliases (alias, skill_id) VALUES (?,?) "
                 "ON CONFLICT (alias) DO UPDATE SET skill_id = excluded.skill_id",
                 (alias, skill_id),
             )
-            if cur.rowcount:
-                alias_added += 1
 
     conn.commit()
 

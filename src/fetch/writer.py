@@ -1,4 +1,4 @@
-"""Persist a FetchResult: postings, locations, closures, and the audit row.
+"""Persist a FetchResult: postings, locations, skills, closures, audit row.
 
 The delisting rules live here and are the part of this project that cannot
 be repaired after the fact. Read the guards before changing anything.
@@ -8,25 +8,22 @@ be repaired after the fact. Read the guards before changing anything.
     An empty board and a broken board look identical from here, so a human
     confirms before a mass closure is written.
   - Posting content freezes at first observation. Only last_seen, closed_at,
-    and NULL-valued salary fields are ever updated on an existing row.
-"""
-"""Persist a FetchResult: postings, locations, closures, and the audit row.
-
-The delisting rules live here and are the part of this project that cannot
-be repaired after the fact. Read the guards before changing anything.
-
-  - A FAILED fetch changes nothing. No inserts, no last_seen, no closures.
-  - A SUCCESSFUL fetch returning zero postings never closes anything.
-    An empty board and a broken board look identical from here, so a human
-    confirms before a mass closure is written.
-  - Posting content freezes at first observation. Only last_seen, closed_at,
-    and NULL-valued salary fields are ever updated on an existing row.
+    posted_at, and NULL-valued salary fields are ever updated.
+  - Skills are RE-EXTRACTED every run from fresh text, so a skill added to a
+    live posting on day 40 is recorded on day 40. Insert-only, never deleted.
 """
 
+import csv
 import sqlite3
+from collections import Counter
 from datetime import datetime, timezone
+from pathlib import Path
 
 from src.normalize.roles import classify_role
+from src.normalize.skills import load_matcher
+from src.normalize.salary import extract as extract_salary
+
+REVIEW_QUEUE = Path("data/review_queue.csv")
 
 SALARY_FIELDS = (
     "salary_min",
@@ -63,8 +60,8 @@ def _insert_posting(conn, company_id, p, now):
         INSERT INTO postings (
           company_id, ats_job_id, title, role_category, location, remote_type,
           department, description_text, salary_min, salary_max, salary_currency,
-          salary_period, salary_source, apply_url, posted_at first_seen, last_seen
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          salary_period, salary_source, apply_url, posted_at, first_seen, last_seen
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             company_id,
@@ -99,7 +96,7 @@ def _insert_posting(conn, company_id, p, now):
 
 
 def _touch_posting(conn, posting_id, p, now):
-    """Move last_seen. Fill NULL salary fields only. Never overwrite content.
+    """Move last_seen. Fill NULL fields only. Never overwrite content.
 
     Returns True if a salary field was filled in.
     """
@@ -133,7 +130,45 @@ def _touch_posting(conn, posting_id, p, now):
     return True
 
 
-def write_result(conn, company_id, result, started_at=None, run_date=None, verbose=True):
+def _write_skills(conn, posting_id, sections, matcher, today):
+    """INSERT OR IGNORE, so new mentions are added and existing ones keep
+    their original first_seen."""
+    n = 0
+    for skill_id, section in matcher.match_sections(sections):
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO posting_skills "
+            "(posting_id, skill_id, section, first_seen) VALUES (?,?,?,?)",
+            (posting_id, skill_id, section, today),
+        )
+        n += cur.rowcount
+    return n
+
+
+def _flush_review_queue(counts):
+    """Merge new unmatched-token counts into data/review_queue.csv.
+
+    Sorted by frequency. Never auto-promoted into skill_aliases: a human
+    reviews this and edits config/skills.yml.
+    """
+    if not counts:
+        return
+    existing = Counter()
+    if REVIEW_QUEUE.exists():
+        with open(REVIEW_QUEUE, newline="") as f:
+            for row in csv.DictReader(f):
+                existing[row["token"]] = int(row["count"])
+    existing.update(counts)
+
+    REVIEW_QUEUE.parent.mkdir(parents=True, exist_ok=True)
+    with open(REVIEW_QUEUE, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["token", "count"])
+        for tok, n in existing.most_common():
+            w.writerow([tok, n])
+
+
+def write_result(conn, company_id, result, started_at=None, run_date=None,
+                 verbose=True, matcher=None):
     """Apply one company's fetch to the database. One transaction, all or nothing.
 
     Returns a dict summarising what happened.
@@ -148,9 +183,12 @@ def write_result(conn, company_id, result, started_at=None, run_date=None, verbo
         "seen": 0,
         "closed": 0,
         "salary_filled": 0,
+        "skills": 0,
         "skipped_closures": False,
         "error": result.error,
     }
+
+    unmatched = Counter()
 
     try:
         conn.execute("BEGIN")
@@ -182,16 +220,30 @@ def write_result(conn, company_id, result, started_at=None, run_date=None, verbo
         existing = open_postings(conn, company_id)
         seen_ids = set()
 
+        if matcher is None:
+            matcher = load_matcher(conn)
+
         for p in result.postings:
             job_id = p["ats_job_id"]
             seen_ids.add(job_id)
+            if p.get("salary_min") is None and p.get("salary_max") is None:
+                p.update(extract_salary(p.get("description_text")))
             if job_id in existing:
                 stats["seen"] += 1
-                if _touch_posting(conn, existing[job_id], p, now):
+                posting_id = existing[job_id]
+                if _touch_posting(conn, posting_id, p, now):
                     stats["salary_filled"] += 1
             else:
-                _insert_posting(conn, company_id, p, now)
+                posting_id = _insert_posting(conn, company_id, p, now)
                 stats["inserted"] += 1
+            sections = p.get("sections") or [("other", p.get("description_text") or "")]
+            stats["skills"] += _write_skills(conn, posting_id, sections, matcher, run_date)
+            # Discovery only looks where tools are actually named. About Us
+            # and EEO boilerplate would otherwise dominate the queue.
+            unmatched.update(matcher.unmatched_tokens(
+                [(b, t) for b, t in sections if b != "other"]
+            ))
+
 
         # Guard: a successful fetch of an empty board never closes anything.
         # CLAUDE.md is explicit about this and it cannot be undone.
@@ -214,19 +266,10 @@ def write_result(conn, company_id, result, started_at=None, run_date=None, verbo
         stats["closed"] = len(vanished)
 
         conn.execute("COMMIT")
+        _flush_review_queue(unmatched)
 
     except Exception:
         conn.execute("ROLLBACK")
         raise
 
     return stats
-import sqlite3
-from datetime import datetime, timezone
-
-from src.normalize.roles import classify_role
-
-SALARY_FIELDS = ("salary_min", "salary_max", "salary_currency", "salary_period", "salary_source")
-
-def _now():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-

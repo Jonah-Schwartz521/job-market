@@ -15,17 +15,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.fetch import greenhouse
+from src.fetch import greenhouse, lever
 from src.fetch.greenhouse import FetchResult
 from src.fetch.writer import write_result
-from src.fetch import greenhouse, lever
+from src.normalize.skills import load_matcher
 
 DB_PATH = Path("data/jobs.db")
 
 FETCHERS = {
     "greenhouse": greenhouse.fetch,
     "lever": lever.fetch,
-    
 }
 
 
@@ -42,7 +41,7 @@ def active_companies(conn, only=None):
     return conn.execute(sql + " ORDER BY name", params).fetchall()
 
 
-def run_one(conn, company, run_date=None, dry_run=False):
+def run_one(conn, company, run_date=None, dry_run=False, matcher=None):
     company_id, name, ats, token = company
     started_at = _now()
 
@@ -64,12 +63,16 @@ def run_one(conn, company, run_date=None, dry_run=False):
             "seen": 0,
             "closed": 0,
             "salary_filled": 0,
+            "skills": 0,
             "skipped_closures": False,
             "error": result.error,
             "fetched": result.posting_count,
         }
 
-    stats = write_result(conn, company_id, result, started_at=started_at, run_date=run_date)
+    stats = write_result(
+        conn, company_id, result, started_at=started_at, run_date=run_date,
+        matcher=matcher,
+    )
     stats["fetched"] = result.posting_count
     return stats
 
@@ -91,20 +94,26 @@ def main():
     if not companies:
         raise SystemExit("no active companies matched")
 
-    print(f"{'company':<18} {'status':<8} {'got':>5} {'new':>5} {'seen':>5} {'closed':>7}  notes")
-    print("-" * 78)
+    # Compiled once for the whole run, not once per company.
+    matcher = None if args.dry_run else load_matcher(conn)
+
+    print(f"{'company':<18} {'status':<8} {'got':>5} {'new':>5} {'seen':>5} "
+          f"{'closed':>7} {'skills':>7}  notes")
+    print("-" * 90)
 
     failures = 0
-    totals = {"inserted": 0, "seen": 0, "closed": 0, "salary_filled": 0}
+    totals = {"inserted": 0, "seen": 0, "closed": 0, "salary_filled": 0, "skills": 0}
 
     for company in companies:
         name = company[1]
         try:
-            s = run_one(conn, company, run_date=args.run_date, dry_run=args.dry_run)
+            s = run_one(conn, company, run_date=args.run_date,
+                        dry_run=args.dry_run, matcher=matcher)
         except Exception as e:
             # Writer-level failure. The transaction rolled back; keep going.
             failures += 1
-            print(f"{name:<18} {'ERROR':<8} {'':>5} {'':>5} {'':>5} {'':>7}  {type(e).__name__}: {e}")
+            print(f"{name:<18} {'ERROR':<8} {'':>5} {'':>5} {'':>5} {'':>7} {'':>7}  "
+                  f"{type(e).__name__}: {e}")
             continue
 
         notes = []
@@ -123,15 +132,16 @@ def main():
 
         print(
             f"{name:<18} {s['status']:<8} {s['fetched']:>5} {s['inserted']:>5} "
-            f"{s['seen']:>5} {s['closed']:>7}  {'; '.join(notes)}"
+            f"{s['seen']:>5} {s['closed']:>7} {s['skills']:>7}  {'; '.join(notes)}"
         )
 
     conn.close()
 
-    print("-" * 78)
+    print("-" * 90)
     print(
         f"{len(companies)} companies, {failures} failed. "
-        f"{totals['inserted']} new, {totals['seen']} seen, {totals['closed']} closed."
+        f"{totals['inserted']} new, {totals['seen']} seen, {totals['closed']} closed, "
+        f"{totals['skills']} skill mentions."
     )
     if args.dry_run:
         print("DRY RUN: nothing was written.")
