@@ -63,7 +63,7 @@ def _insert_posting(conn, company_id, p, now):
         INSERT INTO postings (
           company_id, ats_job_id, title, role_category, location, remote_type,
           department, description_text, salary_min, salary_max, salary_currency,
-          salary_period, salary_source, apply_url, first_seen, last_seen
+          salary_period, salary_source, apply_url, posted_at first_seen, last_seen
         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
@@ -81,6 +81,7 @@ def _insert_posting(conn, company_id, p, now):
             p.get("salary_period"),
             p.get("salary_source") or "none",
             p.get("apply_url"),
+            p.get("posted_at"),
             now,
             now,
         ),
@@ -103,6 +104,13 @@ def _touch_posting(conn, posting_id, p, now):
     Returns True if a salary field was filled in.
     """
     conn.execute("UPDATE postings SET last_seen = ? WHERE id = ?", (now, posting_id))
+
+    # posted_at is immutable upstream; NULL -> value only completes a record.
+    if p.get("posted_at"):
+        conn.execute(
+            "UPDATE postings SET posted_at = ? WHERE id = ? AND posted_at IS NULL",
+            (p["posted_at"], posting_id),
+        )
 
     row = conn.execute(
         f"SELECT {', '.join(SALARY_FIELDS)} FROM postings WHERE id = ?", (posting_id,)

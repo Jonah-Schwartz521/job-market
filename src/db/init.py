@@ -41,6 +41,7 @@ TABLES = [
           salary_source    TEXT NOT NULL DEFAULT 'none'
                              CHECK (salary_source IN ('structured','regex','none')),
           apply_url        TEXT,
+          posted_at        TEXT,
           first_seen       TEXT NOT NULL,
           last_seen        TEXT NOT NULL,
           closed_at        TEXT

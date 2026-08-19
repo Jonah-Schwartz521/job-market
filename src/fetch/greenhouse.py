@@ -10,6 +10,7 @@ This module does not touch SQLite.
 import html
 import re
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -62,6 +63,16 @@ def html_to_text(raw: str) -> str:
     s = re.sub(r"\n\s*\n\s*\n+", "\n\n", s)
     return s.strip()
 
+def _posted_at(raw) -> Optional[str]:
+    """Greenhouse first_published is ISO 8601 with a local UTC offset."""
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw).astimezone(timezone.utc).isoformat(
+            timespec="seconds"
+        )
+    except (TypeError, ValueError):
+        return None
 
 def normalize_job(job: dict) -> dict:
     """Map one Greenhouse job to the shared normalized shape."""
@@ -86,6 +97,7 @@ def normalize_job(job: dict) -> dict:
         "department": departments[0] if departments else None,
         "description_text": html_to_text(job.get("content") or ""),
         "apply_url": job.get("absolute_url"),
+        "posted_at": _posted_at(job.get("first_published")),
         # Greenhouse exposes no compensation field at all.
         # src/normalize/salary.py fills these from description_text.
         "salary_min": None,
