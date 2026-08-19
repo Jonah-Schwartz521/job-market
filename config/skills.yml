@@ -1,0 +1,113 @@
+# Seed skill dictionary. Deliberately small.
+#
+# This is a STARTING POINT, not a target. The review queue is the discovery
+# mechanism; a large hand-written dictionary defeats it by hiding how much
+# you are missing. Entries here were chosen from tokens that actually appear
+# in the collected corpus, plus near-misses the corpus is too small to show.
+#
+# Nothing is ever added here automatically. Every alias is approved by hand.
+#
+# Fields:
+#   canonical  display name, unique
+#   category   language | cloud | data | ml | devops | database | bi | web | practice
+#   aliases    additional surface forms; matched case-insensitively on word
+#              boundaries. The canonical name is always matched too.
+#   guard      OPTIONAL regex. The match only counts if this also appears
+#              within ~80 chars. For short ambiguous tokens.
+#   deny       OPTIONAL regex. The match is discarded if this matches at the
+#              match site. Beats guard.
+
+skills:
+  # --- languages -----------------------------------------------------------
+  - {canonical: Python,      category: language}
+  - {canonical: SQL,         category: language}
+  - {canonical: Java,        category: language, deny: 'javascript'}
+  - {canonical: JavaScript,  category: language, aliases: [js]}
+  - {canonical: TypeScript,  category: language, aliases: [ts]}
+  - {canonical: Scala,       category: language}
+  - {canonical: Ruby,        category: language, aliases: [ruby on rails, rails]}
+  - {canonical: Kotlin,      category: language}
+  - {canonical: Swift,       category: language}
+  - {canonical: Rust,        category: language}
+  - {canonical: Go,          category: language, aliases: [golang],
+     guard: 'programming language|java|ruby|scala|python|kotlin|swift|c\+\+|rust|backend',
+     deny: 'go\s*-?\s*to\s*-?\s*market|go\s*-?\s*live|go\s+deep|go\s+beyond'}
+  - {canonical: C++,         category: language, aliases: ['cpp']}
+  - {canonical: C#,          category: language, aliases: [csharp, .net, dotnet]}
+  - {canonical: R,           category: language,
+     guard: 'statistic|programming language|python|sas\b|matlab|regression|biostat'}
+  - {canonical: SAS,         category: language,
+     guard: 'statistic|sas programming|analytic|clinical|biostat',
+     deny: 'saas'}
+
+  # --- cloud ---------------------------------------------------------------
+  - {canonical: AWS,         category: cloud, aliases: [amazon web services]}
+  - {canonical: Azure,       category: cloud, aliases: [microsoft azure]}
+  - {canonical: GCP,         category: cloud, aliases: [google cloud, google cloud platform]}
+  - {canonical: Terraform,   category: cloud}
+  - {canonical: Kubernetes,  category: cloud, aliases: [k8s, eks, gke]}
+  - {canonical: Docker,      category: cloud, aliases: [containerization]}
+
+  # --- data platform -------------------------------------------------------
+  - {canonical: Snowflake,   category: data}
+  - {canonical: Databricks,  category: data}
+  - {canonical: BigQuery,    category: data}
+  - {canonical: Redshift,    category: data}
+  - {canonical: Spark,       category: data, aliases: [apache spark, pyspark]}
+  - {canonical: Kafka,       category: data, aliases: [apache kafka]}
+  - {canonical: Airflow,     category: data, aliases: [apache airflow]}
+  - {canonical: dbt,         category: data, guard: 'transform|model|warehouse|analytics|sql|pipeline|elt'}
+  - {canonical: Dagster,     category: data}
+  - {canonical: Flink,       category: data, aliases: [apache flink]}
+  - {canonical: Hadoop,      category: data}
+
+  # --- databases -----------------------------------------------------------
+  - {canonical: PostgreSQL,  category: database, aliases: [postgres, psql]}
+  - {canonical: MySQL,       category: database}
+  - {canonical: MongoDB,     category: database, aliases: [mongo]}
+  - {canonical: Redis,       category: database}
+  - {canonical: DynamoDB,    category: database}
+  - {canonical: Elasticsearch, category: database, aliases: [elastic search, opensearch]}
+
+  # --- ml / ai -------------------------------------------------------------
+  - {canonical: LLM,         category: ml, aliases: [llms, large language model, large language models]}
+  - {canonical: PyTorch,     category: ml}
+  - {canonical: TensorFlow,  category: ml}
+  - {canonical: scikit-learn, category: ml, aliases: [sklearn, scikit learn]}
+  - {canonical: Hugging Face, category: ml, aliases: [huggingface, transformers library]}
+  - {canonical: LangChain,   category: ml}
+  - {canonical: RAG,         category: ml, aliases: [retrieval augmented generation, retrieval-augmented generation]}
+  - {canonical: MLflow,      category: ml}
+  - {canonical: SageMaker,   category: ml, aliases: [amazon sagemaker]}
+  - {canonical: Vertex AI,   category: ml}
+  - {canonical: NLP,         category: ml, aliases: [natural language processing]}
+  - {canonical: Computer Vision, category: ml, aliases: [cv]}
+  - {canonical: MCP,         category: ml, aliases: [model context protocol],
+     guard: 'protocol|agent|tool|llm|claude|anthropic|context'}
+
+  # --- python data stack ---------------------------------------------------
+  - {canonical: pandas,      category: data}
+  - {canonical: NumPy,       category: data}
+  - {canonical: Jupyter,     category: data, aliases: [jupyter notebook, notebooks]}
+
+  # --- bi ------------------------------------------------------------------
+  - {canonical: Tableau,     category: bi}
+  - {canonical: Looker,      category: bi, aliases: [lookml]}
+  - {canonical: Power BI,    category: bi, aliases: [powerbi]}
+
+  # --- web -----------------------------------------------------------------
+  - {canonical: React,       category: web, aliases: [react.js, reactjs]}
+  - {canonical: Node.js,     category: web, aliases: [nodejs, node]}
+  - {canonical: GraphQL,     category: web}
+  - {canonical: REST API,    category: web, aliases: [rest, restful, api, apis]}
+
+  # --- devops / practice ---------------------------------------------------
+  - {canonical: CI/CD,       category: devops, aliases: [ci cd, continuous integration, continuous delivery, continuous deployment]}
+  - {canonical: Git,         category: devops, aliases: [github, gitlab, version control]}
+  - {canonical: Jenkins,     category: devops}
+  - {canonical: Datadog,     category: devops}
+  - {canonical: IAM,         category: devops, aliases: [identity and access management]}
+  - {canonical: A/B Testing, category: practice, aliases: [a b testing, experimentation, ab test]}
+  - {canonical: HIPAA,       category: practice}
+  - {canonical: FHIR,        category: practice, aliases: [hl7, hl7 fhir]}
+  - {canonical: PCI DSS,     category: practice, aliases: [pci, pci-dss]}
