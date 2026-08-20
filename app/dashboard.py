@@ -44,7 +44,7 @@ def hbar(df, label, value="postings"):
     ).properties(height=max(90, 26 * len(df)))
 
 
-def where_clause(industries, roles, companies, open_only):
+def where_clause(industries, roles, companies, open_only, seniority=None):
     """Build a shared filter fragment plus its params."""
     parts, params = [], []
     if open_only:
@@ -55,6 +55,9 @@ def where_clause(industries, roles, companies, open_only):
     if roles:
         parts.append(f"p.role_category IN ({','.join('?' * len(roles))})")
         params += roles
+    if seniority:
+        parts.append(f"p.seniority IN ({','.join('?' * len(seniority))})")
+        params += seniority
     if companies:
         parts.append(f"co.name IN ({','.join('?' * len(companies))})")
         params += companies
@@ -69,15 +72,27 @@ if not DB_PATH.exists():
 meta = q("SELECT DISTINCT industry FROM companies ORDER BY 1")
 all_companies = q("SELECT name FROM companies ORDER BY 1")
 all_roles = q("SELECT DISTINCT role_category FROM postings ORDER BY 1")
+all_seniority = q("SELECT DISTINCT seniority FROM postings ORDER BY 1")
 
 st.sidebar.title("Filters")
 page = st.sidebar.radio("View", ["Leaderboard", "Skill detail"], label_visibility="collapsed")
 st.sidebar.divider()
 
-sel_industries = st.sidebar.multiselect("Industry", meta["industry"].tolist())
+sel_industries = st.sidebar.multiselect(
+    "Company industry", meta["industry"].tolist(),
+    help="The employer's sector, assigned per company. All are software "
+         "companies: 'healthcare-it' means health-tech vendors, not hospitals.",
+)
 sel_roles = st.sidebar.multiselect(
     "Role category", all_roles["role_category"].tolist(),
     default=[r for r in TECH_ROLES if r in all_roles["role_category"].tolist()],
+    help="What the job is, derived from the title. Includes non-technical "
+         "roles: sales, finance, legal, people.",
+)
+sel_seniority = st.sidebar.multiselect(
+    "Seniority", all_seniority["seniority"].tolist(),
+    help="Derived from the title. 'unspecified' means the title carried no "
+         "level word, which is about half of all postings.",
 )
 sel_companies = st.sidebar.multiselect("Company", all_companies["name"].tolist())
 section = st.sidebar.selectbox(
@@ -92,7 +107,9 @@ SECTION_SQL = {
     "any": "1=1",
 }[section]
 
-WHERE, PARAMS = where_clause(sel_industries, sel_roles, sel_companies, open_only)
+WHERE, PARAMS = where_clause(
+    sel_industries, sel_roles, sel_companies, open_only, sel_seniority
+)
 
 total_postings = q(
     f"""SELECT COUNT(*) n FROM postings p
@@ -105,9 +122,18 @@ runs = q("SELECT MIN(run_date) a, MAX(run_date) b, COUNT(DISTINCT run_date) n FR
 days = int(runs["n"][0] or 0)
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Postings in scope", f"{total_postings:,}")
+c1.metric("Postings in scope", f"{total_postings:,}",
+          help="Open postings matching the filters at left, not the whole database.")
 c2.metric("Days collected", days)
 c3.metric("Closures observed", int(q("SELECT COUNT(*) n FROM postings WHERE closed_at IS NOT NULL")["n"][0]))
+
+n_co = int(q("SELECT COUNT(*) n FROM companies WHERE active=1")["n"][0])
+st.caption(
+    f"Scope: all open postings at {n_co} software companies on Greenhouse, "
+    "Lever, and Ashby. Includes non-technical roles at those companies, but "
+    "no non-software employers, since banks and hospitals use ATS platforms "
+    "with no public API."
+)
 
 if days < 14:
     st.info(
@@ -160,7 +186,7 @@ if page == "Leaderboard":
     st.dataframe(
         df[["skill", "category", "postings", "share"]],
         hide_index=True,
-        width='stretch',
+        width="stretch",
         height=min(760, 40 + 35 * len(df)),
         column_config={
             "skill": st.column_config.TextColumn("Skill", width="medium"),
@@ -170,7 +196,9 @@ if page == "Leaderboard":
                 max_value=int(df["postings"].max()), width="large",
             ),
             "share": st.column_config.NumberColumn(
-                "% of scope", format="%.1f%%", width="small",
+                "% of postings", format="%.1f%%", width="small",
+                help="Share of the postings currently in scope that require "
+                     "this skill. Changes as you change filters.",
             ),
         },
     )
@@ -189,7 +217,7 @@ if page == "Leaderboard":
                 y=alt.Y("category:N", sort="-x", title=None),
                 tooltip=["category", "postings"],
             ).properties(height=28 * len(by_cat)),
-            width='stretch',
+            width="stretch",
         )
 
 # ---------------------------------------------------------------- skill detail
@@ -239,22 +267,27 @@ else:
         if by_ind.empty:
             st.caption("none")
         else:
-            st.altair_chart(hbar(by_ind, "industry"), width='stretch')
+            st.altair_chart(hbar(by_ind, "industry"), width="stretch")
 
         by_role = q(f"""SELECT p.role_category, COUNT(DISTINCT ps.posting_id) postings {base}
                         AND {SECTION_SQL} GROUP BY 1 ORDER BY 2 DESC""", P)
         if not by_role.empty:
-            st.altair_chart(hbar(by_role, "role_category"), width='stretch')
+            st.altair_chart(hbar(by_role, "role_category"), width="stretch")
+
+        by_sen = q(f"""SELECT p.seniority, COUNT(DISTINCT ps.posting_id) postings {base}
+                       AND {SECTION_SQL} GROUP BY 1 ORDER BY 2 DESC""", P)
+        if not by_sen.empty:
+            st.altair_chart(hbar(by_sen, "seniority"), width="stretch")
 
     with right:
         st.subheader("Which companies")
         by_co = q(f"""SELECT co.name, COUNT(DISTINCT ps.posting_id) postings {base}
                       AND {SECTION_SQL} GROUP BY 1 ORDER BY 2 DESC""", P)
-        st.dataframe(by_co, hide_index=True, width='stretch')
+        st.dataframe(by_co, hide_index=True, width="stretch")
 
         st.subheader("Section split")
         by_sec = q(f"SELECT ps.section, COUNT(DISTINCT ps.posting_id) postings {base} GROUP BY 1", P)
-        st.altair_chart(hbar(by_sec, "section"), width='stretch')
+        st.altair_chart(hbar(by_sec, "section"), width="stretch")
 
     st.divider()
     left, right = st.columns(2)
@@ -278,7 +311,7 @@ else:
         if co_occ.empty:
             st.caption("No co-occurring skills under these filters.")
         else:
-            st.altair_chart(hbar(co_occ, "skill", "together"), width='stretch')
+            st.altair_chart(hbar(co_occ, "skill", "together"), width="stretch")
 
     with right:
         st.subheader("Posted salary")
