@@ -21,4 +21,4 @@ __pycache__/
 .idea/
 .vscode/
 
-logs/
+logs/.venv/
