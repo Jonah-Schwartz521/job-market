@@ -51,3 +51,23 @@ companies:
   - {name: OpenAI,          ats: ashby,      board_token: openai,        industry: ai-lab,          active: true}
 
   
+    # --- data-infra (was 1 company) ------------------------------------------
+  - {name: ClickHouse,      ats: ashby,      board_token: clickhouse,    industry: data-infra,      active: true}
+  - {name: Supabase,        ats: ashby,      board_token: supabase,      industry: data-infra,      active: true}
+  - {name: Temporal,        ats: ashby,      board_token: temporal,      industry: data-infra,      active: true}
+  - {name: Hex,             ats: ashby,      board_token: hex,           industry: data-infra,      active: true}
+  - {name: Astronomer,      ats: ashby,      board_token: astronomer,    industry: data-infra,      active: true}
+  - {name: Airbyte,         ats: ashby,      board_token: airbyte,       industry: data-infra,      active: true}
+  - {name: MotherDuck,      ats: ashby,      board_token: motherduck,    industry: data-infra,      active: true}
+  - {name: Neon,            ats: ashby,      board_token: neon,          industry: data-infra,      active: true}
+  - {name: Prefect,         ats: ashby,      board_token: prefect,       industry: data-infra,      active: true}
+
+  # --- ai-lab (was 1 company) ----------------------------------------------
+  - {name: Harvey,          ats: ashby,      board_token: harvey,        industry: ai-lab,          active: true}
+  - {name: ElevenLabs,      ats: ashby,      board_token: elevenlabs,    industry: ai-lab,          active: true}
+  - {name: Sierra,          ats: ashby,      board_token: sierra,        industry: ai-lab,          active: true}
+  - {name: Cohere,          ats: ashby,      board_token: cohere,        industry: ai-lab,          active: true}
+  - {name: Perplexity,      ats: ashby,      board_token: perplexity,    industry: ai-lab,          active: true}
+
+  # --- fintech -------------------------------------------------------------
+  - {name: Wealthfront,     ats: lever,      board_token: wealthfront,   industry: fintech,         active: true}
