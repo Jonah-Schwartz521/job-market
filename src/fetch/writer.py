@@ -20,8 +20,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.normalize.roles import classify_role
-from src.normalize.skills import load_matcher
 from src.normalize.salary import extract as extract_salary
+from src.normalize.seniority import classify_seniority
+from src.normalize.skills import load_matcher
 
 REVIEW_QUEUE = Path("data/review_queue.csv")
 
@@ -58,16 +59,18 @@ def _insert_posting(conn, company_id, p, now):
     cur = conn.execute(
         """
         INSERT INTO postings (
-          company_id, ats_job_id, title, role_category, location, remote_type,
-          department, description_text, salary_min, salary_max, salary_currency,
-          salary_period, salary_source, apply_url, posted_at, first_seen, last_seen
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          company_id, ats_job_id, title, role_category, seniority, location,
+          remote_type, department, description_text, salary_min, salary_max,
+          salary_currency, salary_period, salary_source, apply_url, posted_at,
+          first_seen, last_seen
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             company_id,
             p["ats_job_id"],
             p["title"],
             classify_role(p["title"]),
+            classify_seniority(p["title"]),
             p.get("location"),
             p.get("remote_type") or "unknown",
             p.get("department"),
@@ -226,8 +229,12 @@ def write_result(conn, company_id, result, started_at=None, run_date=None,
         for p in result.postings:
             job_id = p["ats_job_id"]
             seen_ids.add(job_id)
+
+            # No ATS gives a usable comp field, so parse the body. Only fills
+            # when the fetcher found nothing structured.
             if p.get("salary_min") is None and p.get("salary_max") is None:
                 p.update(extract_salary(p.get("description_text")))
+
             if job_id in existing:
                 stats["seen"] += 1
                 posting_id = existing[job_id]
@@ -236,6 +243,9 @@ def write_result(conn, company_id, result, started_at=None, run_date=None,
             else:
                 posting_id = _insert_posting(conn, company_id, p, now)
                 stats["inserted"] += 1
+
+            # Skills come from the FRESH text every run, even though
+            # description_text froze at first observation.
             sections = p.get("sections") or [("other", p.get("description_text") or "")]
             stats["skills"] += _write_skills(conn, posting_id, sections, matcher, run_date)
             # Discovery only looks where tools are actually named. About Us
@@ -243,7 +253,6 @@ def write_result(conn, company_id, result, started_at=None, run_date=None,
             unmatched.update(matcher.unmatched_tokens(
                 [(b, t) for b, t in sections if b != "other"]
             ))
-
 
         # Guard: a successful fetch of an empty board never closes anything.
         # CLAUDE.md is explicit about this and it cannot be undone.

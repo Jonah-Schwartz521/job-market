@@ -30,6 +30,7 @@ TABLES = [
           ats_job_id       TEXT NOT NULL,
           title            TEXT NOT NULL,
           role_category    TEXT NOT NULL DEFAULT 'other',
+          seniority        TEXT NOT NULL DEFAULT 'unspecified',
           location         TEXT,
           remote_type      TEXT CHECK (remote_type IN ('remote','hybrid','onsite','unknown')),
           department       TEXT,
