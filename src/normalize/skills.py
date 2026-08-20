@@ -27,19 +27,31 @@ who whom what which why how all any both each few more most other some such
 no nor not only own same so than too very just now also and or but for with
 from into during including until against among throughout despite towards
 upon about above below over under again further once at by on in to of as
+
 please note prior new senior staff lead principal director manager head
 full part time role team job company work working works worked position
 experience experienced years year strong excellent proven demonstrated
 ability able skills knowledge understanding familiarity plus bonus nice
 required preferred minimum qualifications responsibilities requirements
-about who what why where when how join build create develop drive own lead
-manage support provide serve define identify collaborate partner help
-contribute deliver ensure improve maintain design implement product marketing 
-legal finance sales operations strategy business development science analytics 
-research partnerships accounting managers functional oriented premium affairs english
+join build create develop drive own manage support provide serve define
+identify collaborate partner help contribute deliver ensure improve
+maintain design implement
+
+product marketing legal finance sales operations strategy business
+development science analytics research partnerships accounting managers
+functional oriented premium affairs english
+
+san francisco los angeles new york city ca ny sf nyc us usa u.s emea apac
+japan india canada london dublin berlin remote hybrid onsite
+
+fair chance ordinance bachelor bs ms phd degree equivalent submit apply
+application resume employer equal opportunity veteran disability
+sponsorship visa accommodation compensation salary benefits equity bonus
 """.split())
 
-TOKEN_RE = re.compile(r"\b[A-Z][A-Za-z0-9+#.\-]{1,24}\b")
+# Keep slashes so CI/CD and A/B stay whole. Without this the queue reports
+# 'CI' and 'CD' as unmatched even though CI/CD matched fine.
+TOKEN_RE = re.compile(r"\b[A-Z][A-Za-z0-9+#./\-]{1,24}\b")
 SENTENCE_START_RE = re.compile(r"(?m)(^|[.!?:;]\s+|\n\s*[-*\u2022]?\s*)([A-Z])")
 
 

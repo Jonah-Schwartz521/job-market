@@ -19,12 +19,14 @@ from src.fetch import greenhouse, lever
 from src.fetch.greenhouse import FetchResult
 from src.fetch.writer import write_result
 from src.normalize.skills import load_matcher
+from src.fetch import ashby, greenhouse, lever
 
 DB_PATH = Path("data/jobs.db")
 
 FETCHERS = {
     "greenhouse": greenhouse.fetch,
     "lever": lever.fetch,
+    "ashby": ashby.fetch,
 }
 
 

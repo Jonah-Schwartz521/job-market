@@ -111,3 +111,36 @@ skills:
   - {canonical: HIPAA,       category: practice}
   - {canonical: FHIR,        category: practice, aliases: [hl7, hl7 fhir]}
   - {canonical: PCI DSS,     category: practice, aliases: [pci, pci-dss]}
+
+
+  
+  # --- found via review queue, 2026-08-20 ---------------------------------
+  - {canonical: Salesforce,     category: practice, aliases: [sfdc]}
+  - {canonical: Claude,         category: ml, aliases: [anthropic claude],
+     guard: 'ai\b|llm|assistant|anthropic|copilot|agent|coding|model'}
+  - {canonical: GitHub Copilot, category: ml, aliases: [copilot]}
+  - {canonical: Cursor,         category: ml,
+     guard: 'editor|ide|coding|\bai\b|assistant|tool|develop'}
+  - {canonical: Codex,          category: ml,
+     guard: 'openai|coding|agent|\bai\b|assistant'}
+  - {canonical: Gemini,         category: ml, aliases: [google gemini]}
+  - {canonical: Anthropic,      category: ml}
+  - {canonical: OpenAI,         category: ml}
+  - {canonical: LangGraph,      category: ml}
+  - {canonical: LlamaIndex,     category: ml, aliases: [llama index]}
+  - {canonical: DSPy,           category: ml}
+  - {canonical: Ollama,         category: ml}
+  - {canonical: Replit,         category: ml}
+  - {canonical: Amazon Bedrock, category: ml, aliases: [bedrock]}
+  - {canonical: Ray,            category: ml,
+     guard: 'distribut|cluster|compute|anyscale|parallel|train|serve|scal'}
+  - {canonical: Triton,         category: ml,
+     guard: 'inference|kernel|gpu|nvidia|serv|compile'}
+  - {canonical: Weights & Biases, category: ml, aliases: [wandb, weights and biases]}
+  - {canonical: Okta,           category: devops}
+  - {canonical: Sentry,         category: devops}
+  - {canonical: PagerDuty,      category: devops}
+  - {canonical: Fivetran,       category: data}
+  - {canonical: Amplitude,      category: bi}
+  - {canonical: Segment,        category: bi,
+     guard: 'analytics|event|track|cdp|customer data|instrument'}

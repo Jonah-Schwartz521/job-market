@@ -10,11 +10,13 @@ This module does not touch SQLite.
 import html
 import re
 import time
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
+
+from src.normalize.sections import bucket_section
 
 API_URL = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
 
@@ -49,19 +51,27 @@ def _throttle():
     _last_request_at = time.monotonic()
 
 
-def html_to_text(raw: str) -> str:
-    """Greenhouse double-encodes: the content field is escaped HTML."""
-    if not raw:
+def _clean(s: str) -> str:
+    """Strip tags from already-unescaped HTML and normalize whitespace."""
+    if not s:
         return ""
-    s = html.unescape(raw)              # &lt;p&gt;      -> <p>
+    s = re.sub(r"<li[^>]*>", "\n- ", s, flags=re.I)
     s = re.sub(r"<br\s*/?>", "\n", s, flags=re.I)
     s = re.sub(r"</(p|div|li|h[1-6]|tr)>", "\n", s, flags=re.I)
-    s = re.sub(r"<[^>]+>", " ", s)      # drop remaining tags
+    s = re.sub(r"<[^>]+>", " ", s)
     s = html.unescape(s)                # &amp;nbsp; -> &nbsp; -> \xa0
     s = s.replace("\xa0", " ")
     s = re.sub(r"[ \t]+", " ", s)
     s = re.sub(r"\n\s*\n\s*\n+", "\n\n", s)
     return s.strip()
+
+
+def html_to_text(raw: str) -> str:
+    """Greenhouse double-encodes: the content field is escaped HTML."""
+    if not raw:
+        return ""
+    return _clean(html.unescape(raw))
+
 
 def _posted_at(raw) -> Optional[str]:
     """Greenhouse first_published is ISO 8601 with a local UTC offset."""
@@ -74,6 +84,41 @@ def _posted_at(raw) -> Optional[str]:
     except (TypeError, ValueError):
         return None
 
+
+# A header is either a real heading tag, or a paragraph whose entire content
+# is bold. Greenhouse boards mix both, sometimes within one company.
+_HEADER_RE = re.compile(
+    r"<h[1-6][^>]*>(?P<h>.*?)</h[1-6]>"
+    r"|<p[^>]*>\s*<strong[^>]*>(?P<b>.*?)</strong>\s*</p>",
+    re.S | re.I,
+)
+
+
+def split_sections(raw: str):
+    """Split escaped Greenhouse HTML into (bucket, text) chunks."""
+    if not raw:
+        return []
+
+    doc = html.unescape(raw)
+    chunks, pos, header = [], 0, None
+
+    for m in _HEADER_RE.finditer(doc):
+        body = _clean(doc[pos:m.start()])
+        if body:
+            chunks.append((bucket_section(header), body))
+        header = _clean(m.group("h") or m.group("b") or "")
+        # A "header" longer than a short line is really a bold sentence.
+        if len(header) > 60:
+            header = None
+        pos = m.end()
+
+    tail = _clean(doc[pos:])
+    if tail:
+        chunks.append((bucket_section(header), tail))
+
+    return chunks
+
+
 def normalize_job(job: dict) -> dict:
     """Map one Greenhouse job to the shared normalized shape."""
     location = (job.get("location") or {}).get("name")
@@ -85,6 +130,9 @@ def normalize_job(job: dict) -> dict:
         if d.get("name") and d["name"].strip().lower() != "no department"
     ]
 
+    sections = split_sections(job.get("content") or "")
+    description_text = "\n\n".join(t for _, t in sections)
+
     return {
         "ats_job_id": str(job["id"]),
         "title": (job.get("title") or "").strip(),
@@ -95,7 +143,8 @@ def normalize_job(job: dict) -> dict:
         "locations": [location] if location else [],
         "remote_type": "unknown",           # no such field on Greenhouse
         "department": departments[0] if departments else None,
-        "description_text": html_to_text(job.get("content") or ""),
+        "description_text": description_text,
+        "sections": sections,
         "apply_url": job.get("absolute_url"),
         "posted_at": _posted_at(job.get("first_published")),
         # Greenhouse exposes no compensation field at all.

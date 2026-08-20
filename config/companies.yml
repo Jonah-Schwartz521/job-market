@@ -1,13 +1,53 @@
 # board_token is the slug in the company's ATS careers URL
 # industry is assigned by us, there is no ATS field for it
+#
+# NOTE: industry lives on the company, not the posting, so changing a
+# company's industry retroactively relabels its entire history. Settle the
+# label before adding, not after.
 companies:
-  - {name: Komodo Health,   ats: greenhouse, board_token: komodohealth,   industry: healthcare-it, active: true}
-  - {name: Omada Health,    ats: greenhouse, board_token: omadahealth,    industry: healthcare-it, active: true}
-  - {name: Zocdoc,          ats: greenhouse, board_token: zocdoc,         industry: healthcare-it, active: true}
-  - {name: Truveta,         ats: greenhouse, board_token: truveta,        industry: healthcare-it, active: true}
-  - {name: Talkspace,       ats: greenhouse, board_token: talkspace,      industry: healthcare-it, active: true}
-  - {name: Doximity,        ats: greenhouse, board_token: doximity,       industry: healthcare-it, active: true}
-  - {name: Flatiron Health, ats: greenhouse, board_token: flatironhealth, industry: healthcare-it, active: true}
-  - {name: Stripe,          ats: greenhouse, board_token: stripe,         industry: fintech,       active: true}
-  - {name: Spotify,         ats: lever,      board_token: spotify,        industry: consumer-tech, active: true}
-  - {name: Tala,            ats: lever,      board_token: tala,           industry: fintech,       active: true}
+  # --- healthcare-it -------------------------------------------------------
+  - {name: Komodo Health,   ats: greenhouse, board_token: komodohealth,   industry: healthcare-it,   active: true}
+  - {name: Omada Health,    ats: greenhouse, board_token: omadahealth,    industry: healthcare-it,   active: true}
+  - {name: Zocdoc,          ats: greenhouse, board_token: zocdoc,         industry: healthcare-it,   active: true}
+  - {name: Truveta,         ats: greenhouse, board_token: truveta,        industry: healthcare-it,   active: true}
+  - {name: Talkspace,       ats: greenhouse, board_token: talkspace,      industry: healthcare-it,   active: true}
+  - {name: Doximity,        ats: greenhouse, board_token: doximity,       industry: healthcare-it,   active: true}
+  - {name: Flatiron Health, ats: greenhouse, board_token: flatironhealth, industry: healthcare-it,   active: true}
+
+  # --- fintech -------------------------------------------------------------
+  - {name: Stripe,          ats: greenhouse, board_token: stripe,         industry: fintech,         active: true}
+  - {name: Brex,            ats: greenhouse, board_token: brex,           industry: fintech,         active: true}
+  - {name: Affirm,          ats: greenhouse, board_token: affirm,         industry: fintech,         active: true}
+  - {name: Chime,           ats: greenhouse, board_token: chime,          industry: fintech,         active: true}
+  - {name: Tala,            ats: lever,      board_token: tala,           industry: fintech,         active: true}
+
+  # --- consumer-tech -------------------------------------------------------
+  - {name: Spotify,         ats: lever,      board_token: spotify,        industry: consumer-tech,   active: true}
+  - {name: Reddit,          ats: greenhouse, board_token: reddit,         industry: consumer-tech,   active: true}
+  - {name: Discord,         ats: greenhouse, board_token: discord,        industry: consumer-tech,   active: true}
+  - {name: Duolingo,        ats: greenhouse, board_token: duolingo,       industry: consumer-tech,   active: true}
+  - {name: Pinterest,       ats: greenhouse, board_token: pinterest,      industry: consumer-tech,   active: true}
+
+  # --- enterprise-saas -----------------------------------------------------
+  - {name: Datadog,         ats: greenhouse, board_token: datadog,        industry: enterprise-saas, active: true}
+  - {name: GitLab,          ats: greenhouse, board_token: gitlab,         industry: enterprise-saas, active: true}
+  - {name: Asana,           ats: greenhouse, board_token: asana,          industry: enterprise-saas, active: true}
+
+  # --- data-infra ----------------------------------------------------------
+  # Single company for now. Any "data-infra" finding is a Databricks finding
+  # until Snowflake / Confluent / dbt Labs tokens are found (all non-Greenhouse).
+  - {name: Databricks,      ats: greenhouse, board_token: databricks,     industry: data-infra,      active: true}
+
+    # --- healthcare-it (additions) -------------------------------------------
+  - {name: Maven Clinic,    ats: greenhouse, board_token: mavenclinic,   industry: healthcare-it,   active: true}
+  - {name: Modern Health,   ats: greenhouse, board_token: modernhealth,  industry: healthcare-it,   active: true}
+  - {name: Garner Health,   ats: greenhouse, board_token: garnerhealth,  industry: healthcare-it,   active: true}
+
+  # --- ashby ---------------------------------------------------------------
+  - {name: Ramp,            ats: ashby,      board_token: ramp,          industry: fintech,         active: true}
+  - {name: Notion,          ats: ashby,      board_token: notion,        industry: enterprise-saas, active: true}
+  - {name: Linear,          ats: ashby,      board_token: linear,        industry: enterprise-saas, active: true}
+  - {name: Vanta,           ats: ashby,      board_token: vanta,         industry: enterprise-saas, active: true}
+  - {name: OpenAI,          ats: ashby,      board_token: openai,        industry: ai-lab,          active: true}
+
+  
