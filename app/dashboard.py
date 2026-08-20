@@ -75,7 +75,10 @@ all_roles = q("SELECT DISTINCT role_category FROM postings ORDER BY 1")
 all_seniority = q("SELECT DISTINCT seniority FROM postings ORDER BY 1")
 
 st.sidebar.title("Filters")
-page = st.sidebar.radio("View", ["Leaderboard", "Skill detail"], label_visibility="collapsed")
+page = st.sidebar.radio(
+    "View", ["Leaderboard", "Skill detail", "Data health"],
+    label_visibility="collapsed",
+)
 st.sidebar.divider()
 
 sel_industries = st.sidebar.multiselect(
@@ -116,6 +119,146 @@ total_postings = q(
         JOIN companies co ON co.id = p.company_id
         WHERE {WHERE}""", PARAMS
 )["n"][0]
+
+# ---------------------------------------------------------------- data health
+if page == "Data health":
+    st.header("Data health")
+    st.caption(
+        "This page ignores the sidebar filters on purpose: it describes the "
+        "whole collection, not a slice of it."
+    )
+
+    span = q("""SELECT MIN(run_date) a, MAX(run_date) b,
+                       COUNT(DISTINCT run_date) collected,
+                       CAST(julianday(MAX(run_date)) - julianday(MIN(run_date)) AS INT) + 1 total
+                FROM fetch_runs""")
+    collected = int(span["collected"][0] or 0)
+    total_days = int(span["total"][0] or 0)
+    missed = max(0, total_days - collected)
+
+    h1, h2, h3, h4 = st.columns(4)
+    h1.metric("Days collected", collected,
+              f"-{missed} missed" if missed else None, delta_color="inverse",
+              help="A gap inflates time-to-fill: a posting that closed during "
+                   "the gap is stamped with the day collection resumed.")
+    h2.metric("Calendar span", f"{total_days} d", f"{span['a'][0]} to {span['b'][0]}")
+    h3.metric("Total postings", f"{int(q('SELECT COUNT(*) n FROM postings')['n'][0]):,}")
+    h4.metric("Skill mentions", f"{int(q('SELECT COUNT(*) n FROM posting_skills')['n'][0]):,}")
+
+    if missed:
+        have = set(q("SELECT DISTINCT run_date d FROM fetch_runs")["d"])
+        all_days = pd.date_range(span["a"][0], span["b"][0]).strftime("%Y-%m-%d")
+        st.warning("No run on: " + ", ".join(d for d in all_days if d not in have))
+
+    st.divider()
+    st.subheader("Per company")
+
+    health = q("""
+        SELECT co.name AS company, co.ats, co.industry,
+               COUNT(p.id) AS open_postings,
+               SUM(p.salary_min IS NOT NULL) AS with_salary,
+               SUM(p.role_category = 'other') AS role_other,
+               SUM(ps.posting_id IS NULL) AS no_skills,
+               (SELECT MAX(run_date) FROM fetch_runs f
+                 WHERE f.company_id = co.id AND f.status = 'success') AS last_ok,
+               (SELECT COUNT(*) FROM fetch_runs f
+                 WHERE f.company_id = co.id AND f.status = 'failed') AS failures
+        FROM companies co
+        LEFT JOIN postings p
+               ON p.company_id = co.id AND p.closed_at IS NULL
+        LEFT JOIN (SELECT DISTINCT posting_id FROM posting_skills) ps
+               ON ps.posting_id = p.id
+        WHERE co.active = 1
+        GROUP BY co.id ORDER BY co.name
+    """)
+
+    latest = span["b"][0]
+    health["stale"] = health["last_ok"] != latest
+    for col, src in (("salary %", "with_salary"), ("no-skill %", "no_skills"),
+                     ("other-role %", "role_other")):
+        health[col] = (health[src] / health["open_postings"].replace(0, pd.NA) * 100).round(0)
+
+    st.dataframe(
+        health[["company", "ats", "industry", "open_postings", "salary %",
+                "no-skill %", "other-role %", "failures", "last_ok", "stale"]],
+        hide_index=True, width="stretch", height=min(760, 40 + 35 * len(health)),
+        column_config={
+            "open_postings": st.column_config.NumberColumn("Open"),
+            "salary %": st.column_config.ProgressColumn(
+                "Salary", format="%.0f%%", min_value=0, max_value=100,
+                help="Share of open postings with a parsed salary range."),
+            "no-skill %": st.column_config.ProgressColumn(
+                "No skills", format="%.0f%%", min_value=0, max_value=100,
+                help="Open postings where the dictionary matched nothing. "
+                     "A high number means a parsing problem or a non-technical board."),
+            "other-role %": st.column_config.ProgressColumn(
+                "Role 'other'", format="%.0f%%", min_value=0, max_value=100),
+            "failures": st.column_config.NumberColumn("Fails"),
+            "last_ok": st.column_config.TextColumn("Last OK"),
+            "stale": st.column_config.CheckboxColumn(
+                "Stale", help="No successful fetch on the most recent run date."),
+        },
+    )
+
+    stale = health[health["stale"]]["company"].tolist()
+    if stale:
+        st.error("No successful fetch on the latest run date: " + ", ".join(stale))
+    else:
+        st.success("Every active company fetched successfully on the latest run.")
+
+    st.divider()
+    left, right = st.columns(2)
+
+    with left:
+        st.subheader("Recent failures")
+        fails = q("""SELECT f.run_date, co.name AS company, f.http_status, f.error
+                     FROM fetch_runs f JOIN companies co ON co.id = f.company_id
+                     WHERE f.status = 'failed'
+                     ORDER BY f.run_date DESC, co.name LIMIT 25""")
+        if fails.empty:
+            st.caption("No failed fetches on record.")
+        else:
+            st.dataframe(fails, hide_index=True, width="stretch")
+
+    with right:
+        st.subheader("Coverage overall")
+        cov = q("""
+            SELECT
+              (SELECT COUNT(*) FROM postings WHERE closed_at IS NULL) AS open_p,
+              (SELECT COUNT(*) FROM postings WHERE closed_at IS NULL AND salary_min IS NOT NULL) AS sal,
+              (SELECT COUNT(*) FROM postings WHERE closed_at IS NULL AND posted_at IS NOT NULL) AS posted,
+              (SELECT COUNT(*) FROM postings WHERE closed_at IS NULL AND role_category != 'other') AS roled,
+              (SELECT COUNT(*) FROM postings WHERE closed_at IS NULL AND seniority != 'unspecified') AS senior,
+              (SELECT COUNT(DISTINCT posting_id) FROM posting_skills) AS skilled
+        """)
+        n = int(cov["open_p"][0]) or 1
+        bars = pd.DataFrame({
+            "field": ["salary", "posted_at", "role classified", "seniority known", "any skill"],
+            "pct": [round(int(cov[c][0]) / n * 100, 1)
+                    for c in ("sal", "posted", "roled", "senior", "skilled")],
+        })
+        st.altair_chart(
+            alt.Chart(bars).mark_bar(cornerRadiusEnd=3).encode(
+                x=alt.X("pct:Q", title="% of open postings", scale=alt.Scale(domain=[0, 100])),
+                y=alt.Y("field:N", sort="-x", title=None),
+                tooltip=["field", "pct"],
+            ).properties(height=150), width="stretch")
+        st.caption(
+            "Low salary coverage is expected: only Ashby exposes a structured "
+            "comp field, so everything else depends on pay-transparency text."
+        )
+
+    st.divider()
+    st.subheader("Postings and closures by day")
+    daily = q("""
+        SELECT run_date AS day,
+               (SELECT COUNT(*) FROM postings WHERE first_seen LIKE f.run_date || '%') AS new_postings,
+               (SELECT COUNT(*) FROM postings WHERE closed_at = f.run_date) AS closed
+        FROM (SELECT DISTINCT run_date FROM fetch_runs) f ORDER BY day
+    """)
+    st.dataframe(daily, hide_index=True, width="stretch")
+
+    st.stop()
 
 # ---------------------------------------------------------------- header
 runs = q("SELECT MIN(run_date) a, MAX(run_date) b, COUNT(DISTINCT run_date) n FROM fetch_runs")
@@ -349,8 +492,24 @@ else:
     if age.empty:
         st.caption("No posted_at dates available yet.")
     else:
-        st.bar_chart(age["days"].clip(upper=365).value_counts(bins=12).sort_index())
+        # Explicit buckets: value_counts(bins=) yields an Interval index that
+        # Streamlit renders as raw JSON and sorts alphabetically.
+        EDGES = [0, 7, 14, 30, 60, 90, 180, 365, 10 ** 6]
+        LABELS = ["<1w", "1-2w", "2-4w", "1-2m", "2-3m", "3-6m", "6-12m", "1y+"]
+        buckets = pd.cut(age["days"].clip(lower=0), bins=EDGES, labels=LABELS, right=False)
+        hist = buckets.value_counts().reindex(LABELS).reset_index()
+        hist.columns = ["bucket", "postings"]
+
+        st.altair_chart(
+            alt.Chart(hist).mark_bar(cornerRadiusEnd=3).encode(
+                x=alt.X("bucket:N", sort=LABELS, title="days open",
+                        axis=alt.Axis(labelAngle=0)),
+                y=alt.Y("postings:Q", title=None),
+                tooltip=["bucket", "postings"],
+            ).properties(height=220),
+            width="stretch",
+        )
         st.caption(
-            f"Median {int(age['days'].median())} days open. Capped at 365 for display. "
-            "Long-lived postings are usually evergreen reqs, not active searches."
+            f"Median {int(age['days'].median())} days open. Long-lived postings "
+            "are usually evergreen reqs, not active searches."
         )
