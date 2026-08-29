@@ -1,9 +1,13 @@
-"""Create the SQLite schema at data/jobs.db. Idempotent."""
+"""Create the SQLite schema. Idempotent.
+
+Target defaults to data/jobs.db; set JOBS_DB to point elsewhere.
+"""
 
 import sqlite3
-from pathlib import Path
 
-DB_PATH = Path("data/jobs.db")
+from src.db.paths import db_path
+
+DB_PATH = db_path()
 
 PRAGMAS = [
     "PRAGMA journal_mode = WAL",

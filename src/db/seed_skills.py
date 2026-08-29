@@ -10,9 +10,11 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.db.paths import db_path
+
 import yaml
 
-DB_PATH = Path("data/jobs.db")
+DB_PATH = db_path()
 CONFIG_PATH = Path("config/skills.yml")
 
 VALID_CATEGORIES = {

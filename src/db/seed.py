@@ -6,8 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path 
 import yaml 
 
+from src.db.paths import db_path
+
 # DB + Config Path 
-DB_PATH = Path("data/jobs.db")
+DB_PATH = db_path()
 CONFIG_PATH = Path("config/companies.yml")
 
 REQUIRED = ["name", "ats", "board_token", "industry"]

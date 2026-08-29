@@ -19,6 +19,11 @@ GUARD_WINDOW = 80
 
 # Sentence-initial capitals and boilerplate proper nouns swamp the review
 # queue otherwise. Measured against the real corpus, not guessed.
+#
+# The last block is pay-transparency and EEO/social-footer vocabulary, held
+# 19 of the top 200 slots and 18% of that volume when counted over the whole
+# jobs.prod.db corpus. Only unmatched_tokens reads this set, never match(),
+# so nothing here can change what gets extracted as a skill.
 STOPWORDS = frozenset("""
 a an the this that these those there here it its we our you your they their
 he she his her i is are was were be been being have has had do does did will
@@ -47,6 +52,9 @@ japan india canada london dublin berlin remote hybrid onsite
 fair chance ordinance bachelor bs ms phd degree equivalent submit apply
 application resume employer equal opportunity veteran disability
 sponsorship visa accommodation compensation salary benefits equity bonus
+
+act applicant candidate county eeo employment fortune instagram linkedin
+notice notices pay policy privacy range statement transparency usd youtube
 """.split())
 
 # Keep slashes so CI/CD and A/B stay whole. Without this the queue reports

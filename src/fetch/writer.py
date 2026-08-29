@@ -147,8 +147,28 @@ def _write_skills(conn, posting_id, sections, matcher, today):
     return n
 
 
-def _flush_review_queue(counts):
+def _db_source(conn):
+    """Which database these counts came from, read off the live connection.
+
+    Derived, not configured. A source tag that can disagree with the file
+    actually being written to would be worse than having none at all.
+    """
+    try:
+        for _seq, name, path in conn.execute("PRAGMA database_list"):
+            if name == "main":
+                return Path(path).name if path else ":memory:"
+    except sqlite3.Error:
+        pass
+    return "unknown"
+
+
+def _flush_review_queue(counts, source):
     """Merge new unmatched-token counts into data/review_queue.csv.
+
+    Keyed on (token, source). Counts from different databases are NEVER
+    summed: a dev copy and a prod snapshot are different corpora, and adding
+    them makes the frequency ordering meaningless, which is the one property
+    this file is reviewed on.
 
     Sorted by frequency. Never auto-promoted into skill_aliases: a human
     reviews this and edits config/skills.yml.
@@ -159,15 +179,20 @@ def _flush_review_queue(counts):
     if REVIEW_QUEUE.exists():
         with open(REVIEW_QUEUE, newline="") as f:
             for row in csv.DictReader(f):
-                existing[row["token"]] = int(row["count"])
-    existing.update(counts)
+                # Rows written before the source column existed keep their
+                # counts but are tagged unknown, so they stay visible and
+                # stay separate from anything current.
+                existing[(row["token"], row.get("source") or "unknown")] = int(row["count"])
+    for tok, n in counts.items():
+        existing[(tok, source)] += n
 
     REVIEW_QUEUE.parent.mkdir(parents=True, exist_ok=True)
     with open(REVIEW_QUEUE, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["token", "count"])
-        for tok, n in existing.most_common():
-            w.writerow([tok, n])
+        w.writerow(["token", "count", "source"])
+        # Deterministic ties, so a weekly diff shows real movement only.
+        for (tok, src), n in sorted(existing.items(), key=lambda kv: (-kv[1], kv[0][0], kv[0][1])):
+            w.writerow([tok, n, src])
 
 
 def write_result(conn, company_id, result, started_at=None, run_date=None,
@@ -275,7 +300,7 @@ def write_result(conn, company_id, result, started_at=None, run_date=None,
         stats["closed"] = len(vanished)
 
         conn.execute("COMMIT")
-        _flush_review_queue(unmatched)
+        _flush_review_queue(unmatched, _db_source(conn))
 
     except Exception:
         conn.execute("ROLLBACK")

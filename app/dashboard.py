@@ -12,15 +12,36 @@ Run:  streamlit run app/dashboard.py
 """
 
 import sqlite3
+import sys
 from pathlib import Path
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-DB_PATH = Path("data/jobs.db")
+# streamlit run puts app/ on sys.path, not the repo root, so src/ is not
+# importable until we say so.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-TECH_ROLES = ["ai-ml", "data-science", "data-analytics", "data-eng", "it-infra"]
+from src.db.paths import db_path  # noqa: E402
+
+DB_PATH = db_path()
+
+# Two different questions, deliberately two constants. They happen to hold
+# the same value today; they are not the same decision and may diverge.
+#
+#   DEFAULT_ROLES    what the dashboard shows before anyone touches a filter.
+#                    An editorial choice. Widening it moves "Postings in
+#                    scope" and every chart on the Leaderboard and Skill
+#                    detail pages, so it is not a free change.
+#   EXTRACTION_ROLES where the dictionary is EXPECTED to find skills, used as
+#                    the denominator for the no-skill rate. A QA choice.
+#                    Widening it moves one column on Data health and nothing
+#                    else. Add 'software' here if you want SWE postings held
+#                    to the same extraction standard.
+DEFAULT_ROLES = ["ai-ml", "data-science", "data-analytics", "data-eng", "it-infra"]
+EXTRACTION_ROLES = ["ai-ml", "data-science", "data-analytics", "data-eng",
+                    "it-infra", "software"]
 
 st.set_page_config(page_title="Skill Demand", layout="wide")
 
@@ -64,6 +85,31 @@ def where_clause(industries, roles, companies, open_only, seniority=None):
     return (" AND ".join(parts) or "1=1"), params
 
 
+def scope_caption(open_only, roles, seniority, industries, companies, n_active):
+    """Describe the filters that actually produced the headline count.
+
+    Counterpart to where_clause(): the two have to move together. A hardcoded
+    caption drifts from the number the moment anyone touches the sidebar.
+    """
+    def listed(xs, limit):
+        xs = list(xs)
+        if len(xs) <= limit:
+            return ", ".join(xs)
+        return f"{', '.join(xs[:limit])} +{len(xs) - limit} more"
+
+    bits = ["open postings" if open_only else "postings, open and closed,"]
+    bits.append(f"in {listed(roles, 5)}" if roles else "in every role category")
+    if seniority:
+        bits.append(f"at {listed(seniority, 3)} level")
+    if companies:
+        bits.append(f"at {listed(companies, 3)}")
+    elif industries:
+        bits.append(f"at {listed(industries, 3)} companies")
+    else:
+        bits.append(f"across all {n_active} companies")
+    return " ".join(bits)
+
+
 # ---------------------------------------------------------------- sidebar
 if not DB_PATH.exists():
     st.error(f"{DB_PATH} not found. Run from the repo root.")
@@ -73,6 +119,12 @@ meta = q("SELECT DISTINCT industry FROM companies ORDER BY 1")
 all_companies = q("SELECT name FROM companies ORDER BY 1")
 all_roles = q("SELECT DISTINCT role_category FROM postings ORDER BY 1")
 all_seniority = q("SELECT DISTINCT seniority FROM postings ORDER BY 1")
+
+# Which database this is, on every page. A prod snapshot and the dev copy
+# look identical once they are rendered as charts.
+db_rows = int(q("SELECT COUNT(*) n FROM postings")["n"][0])
+st.sidebar.caption(f"Data source: **`{DB_PATH.name}`**  \n{db_rows:,} posting rows")
+st.sidebar.divider()
 
 st.sidebar.title("Filters")
 page = st.sidebar.radio(
@@ -88,7 +140,7 @@ sel_industries = st.sidebar.multiselect(
 )
 sel_roles = st.sidebar.multiselect(
     "Role category", all_roles["role_category"].tolist(),
-    default=[r for r in TECH_ROLES if r in all_roles["role_category"].tolist()],
+    default=[r for r in DEFAULT_ROLES if r in all_roles["role_category"].tolist()],
     help="What the job is, derived from the title. Includes non-technical "
          "roles: sales, finance, legal, people.",
 )
@@ -153,12 +205,20 @@ if page == "Data health":
     st.divider()
     st.subheader("Per company")
 
-    health = q("""
+    # No-skill rate is an extraction-quality metric, so its denominator is
+    # the technical roles only. Over all roles it measures a company's role
+    # mix instead: a sales-heavy board reads ~50% while extracting perfectly.
+    tech_ph = ",".join("?" * len(EXTRACTION_ROLES))
+    health = q(f"""
         SELECT co.name AS company, co.ats, co.industry,
                COUNT(p.id) AS open_postings,
                SUM(p.salary_min IS NOT NULL) AS with_salary,
                SUM(p.role_category = 'other') AS role_other,
-               SUM(ps.posting_id IS NULL) AS no_skills,
+               SUM(CASE WHEN p.role_category IN ({tech_ph})
+                        THEN 1 ELSE 0 END) AS tech_postings,
+               SUM(CASE WHEN p.role_category IN ({tech_ph})
+                         AND ps.posting_id IS NULL
+                        THEN 1 ELSE 0 END) AS tech_no_skills,
                (SELECT MAX(run_date) FROM fetch_runs f
                  WHERE f.company_id = co.id AND f.status = 'success') AS last_ok,
                (SELECT COUNT(*) FROM fetch_runs f
@@ -170,27 +230,38 @@ if page == "Data health":
                ON ps.posting_id = p.id
         WHERE co.active = 1
         GROUP BY co.id ORDER BY co.name
-    """)
+    """, EXTRACTION_ROLES * 2)
 
     latest = span["b"][0]
     health["stale"] = health["last_ok"] != latest
-    for col, src in (("salary %", "with_salary"), ("no-skill %", "no_skills"),
-                     ("other-role %", "role_other")):
-        health[col] = (health[src] / health["open_postings"].replace(0, pd.NA) * 100).round(0)
+    # nan, not pd.NA: a company with no open technical postings divides by
+    # zero here, and NAType has no __round__.
+    open_n = health["open_postings"].replace(0, float("nan"))
+    tech_n = health["tech_postings"].replace(0, float("nan"))
+    for col, src in (("salary %", "with_salary"), ("other-role %", "role_other")):
+        health[col] = (health[src] / open_n * 100).round(0)
+    health["no-skill %"] = (health["tech_no_skills"] / tech_n * 100).round(0)
 
     st.dataframe(
-        health[["company", "ats", "industry", "open_postings", "salary %",
-                "no-skill %", "other-role %", "failures", "last_ok", "stale"]],
+        health[["company", "ats", "industry", "open_postings", "tech_postings",
+                "salary %", "no-skill %", "other-role %", "failures", "last_ok",
+                "stale"]],
         hide_index=True, width="stretch", height=min(760, 40 + 35 * len(health)),
         column_config={
             "open_postings": st.column_config.NumberColumn("Open"),
             "salary %": st.column_config.ProgressColumn(
                 "Salary", format="%.0f%%", min_value=0, max_value=100,
                 help="Share of open postings with a parsed salary range."),
+            "tech_postings": st.column_config.NumberColumn(
+                "Tech",
+                help="Open postings in " + ", ".join(EXTRACTION_ROLES) + ". This is "
+                     "the denominator for the No skills column."),
             "no-skill %": st.column_config.ProgressColumn(
-                "No skills", format="%.0f%%", min_value=0, max_value=100,
-                help="Open postings where the dictionary matched nothing. "
-                     "A high number means a parsing problem or a non-technical board."),
+                "No skills (tech)", format="%.0f%%", min_value=0, max_value=100,
+                help="Of the Tech postings only, the share where the dictionary "
+                     "matched nothing. Blank means the company has no open "
+                     "postings in those categories. Read it against Tech: one "
+                     "miss out of three is not a 33% extraction problem."),
             "other-role %": st.column_config.ProgressColumn(
                 "Role 'other'", format="%.0f%%", min_value=0, max_value=100),
             "failures": st.column_config.NumberColumn("Fails"),
@@ -272,10 +343,11 @@ c3.metric("Closures observed", int(q("SELECT COUNT(*) n FROM postings WHERE clos
 
 n_co = int(q("SELECT COUNT(*) n FROM companies WHERE active=1")["n"][0])
 st.caption(
-    f"Scope: all open postings at {n_co} software companies on Greenhouse, "
-    "Lever, and Ashby. Includes non-technical roles at those companies, but "
-    "no non-software employers, since banks and hospitals use ATS platforms "
-    "with no public API."
+    "Scope: " + scope_caption(
+        open_only, sel_roles, sel_seniority, sel_industries, sel_companies, n_co
+    ) + ". Those are software companies on Greenhouse, Lever, and Ashby, "
+    "carrying every role they post, technical or not. No non-software "
+    "employers: banks and hospitals use ATS platforms with no public API."
 )
 
 if days < 14:
@@ -486,7 +558,8 @@ else:
     st.subheader("Posting age")
     age = q(
         f"""SELECT DISTINCT p.id,
-                   CAST(julianday(COALESCE(p.closed_at, 'now')) - julianday(p.posted_at) AS INT) AS days
+                   CAST(julianday(date(COALESCE(p.closed_at, 'now')))
+                        - julianday(date(p.posted_at)) AS INT) AS days
             {base} AND {SECTION_SQL} AND p.posted_at IS NOT NULL""", P
     )
     if age.empty:

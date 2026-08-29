@@ -13,15 +13,15 @@ import argparse
 import sqlite3
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 from src.fetch import greenhouse, lever
 from src.fetch.greenhouse import FetchResult
 from src.fetch.writer import write_result
 from src.normalize.skills import load_matcher
 from src.fetch import ashby, greenhouse, lever
+from src.db.paths import db_path
 
-DB_PATH = Path("data/jobs.db")
+DB_PATH = db_path()
 
 FETCHERS = {
     "greenhouse": greenhouse.fetch,

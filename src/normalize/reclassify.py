@@ -12,12 +12,12 @@ whenever roles.py or seniority.py changes.
 import argparse
 import sqlite3
 from collections import Counter
-from pathlib import Path
 
+from src.db.paths import db_path
 from src.normalize.roles import classify_role
 from src.normalize.seniority import classify_seniority
 
-DB_PATH = Path("data/jobs.db")
+DB_PATH = db_path()
 
 
 def main():
