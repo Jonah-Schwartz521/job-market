@@ -71,3 +71,17 @@ companies:
 
   # --- fintech -------------------------------------------------------------
   - {name: Wealthfront,     ats: lever,      board_token: wealthfront,   industry: fintech,         active: true}
+  # --- healthcare-it (expansion to ~20 for cross-industry comparison) -------
+  # Every token below verified against the live public API: 200 + non-empty
+  # jobs list at time of adding.
+  - {name: Oscar Health,    ats: greenhouse, board_token: oscar,         industry: healthcare-it,   active: true}
+  - {name: Clover Health,   ats: greenhouse, board_token: cloverhealth,  industry: healthcare-it,   active: true}
+  - {name: Included Health, ats: lever,      board_token: includedhealth, industry: healthcare-it,  active: true}
+  # Lyra's board is mostly clinical/provider roles, not IT. Expect role
+  # classification to drop the large majority of these at query time.
+  - {name: Lyra Health,     ats: lever,      board_token: lyrahealth,    industry: healthcare-it,   active: true}
+  - {name: Hinge Health,    ats: ashby,      board_token: hinge-health,  industry: healthcare-it,   active: true}
+  - {name: Headway,         ats: ashby,      board_token: headway,       industry: healthcare-it,   active: true}
+  - {name: Commure,         ats: ashby,      board_token: commure,       industry: healthcare-it,   active: true}
+  - {name: Abridge,         ats: ashby,      board_token: abridge,       industry: healthcare-it,   active: true}
+  - {name: Cedar,           ats: ashby,      board_token: cedar,         industry: healthcare-it,   active: true}
