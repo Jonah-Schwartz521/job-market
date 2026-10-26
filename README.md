@@ -68,8 +68,4 @@ Total jobs on board: 719
 
 Fields I use: `id` (dedup across snapshots), `title` (role classification), `content` (skill matching, HTML stripped), `company_name`, `location.name`, and `first_published` (posting age; this one has been open since 2023, so long-running postings get flagged). Lever equivalents: `id`, `text`, `descriptionPlain` and `lists`, `categories.location`, `createdAt`.
 
-**Biggest risk and fallback.** The biggest risk is too few analyst postings: the first pull found only 36, so one posting moves a percentage by almost 3 points. Fallback in order: (1) fix 23 board slugs that returned 404 on Oct 25 and add more Greenhouse boards, which only means editing a config file; (2) pool all six snapshots into one cross-section instead of comparing weeks; (3) if analyst is still thin, collapse to two groups, analytics versus data science and AI/ML combined.
-
-## AI use note
-
-I used Claude (Anthropic) to write the snippet that fetched the sample record, to look up the Greenhouse and Lever API documentation, to tighten my draft wording, and to check the draft against the rubric. The research question, data source, collector code, role classifier, and analysis plan are mine. I ran the request myself and checked every claim about the APIs against their documentation.
+**Biggest risk and fallback.** The biggest risk is too few analyst postings: the first pull found only 36, so one posting moves a percentage by almost 3 points. Fallback in order: (1) fix 23 board slugs that returned 404 on Oct 25 and add more Greenhouse boards, which only means editing a config file; (2) pool all six snapshots into one cross-section instead of comparing weeks; (3) if analyst is still thin, collapse to two groups, analytics versus data science and AI/ML 
